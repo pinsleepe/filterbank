@@ -36,31 +36,37 @@ if os.environ.has_key('DISPLAY'):
     import pylab as plt
 else:
     import matplotlib
+
     matplotlib.use('Agg')
     import pylab as plt
 
-MAX_PLT_POINTS      = 65536                  # Max number of points in matplotlib plot
-MAX_IMSHOW_POINTS   = (8192, 4096)           # Max number of points in imshow plot
-MAX_DATA_ARRAY_SIZE = 1024 * 1024 * 1024     # Max size of data array to load into memory
-MAX_HEADER_BLOCKS   = 100                    # Max size of header (in 512-byte blocks)
+MAX_PLT_POINTS = 65536  # Max number of points in matplotlib plot
+MAX_IMSHOW_POINTS = (8192, 4096)  # Max number of points in imshow plot
+# MAX_DATA_ARRAY_SIZE = 1024 * 1024 * 1024  # Max size of data array to load into memory
+MAX_DATA_ARRAY_SIZE = 11993612288
+# MAX_HEADER_BLOCKS = 100  # Max size of header (in 512-byte blocks)
+MAX_HEADER_BLOCKS = 364
 
 ###
 # useful helper functions
 ###
 
 
-def db(x): 
+def db(x):
     """ Convert linear to dB """
-    return 10*np.log10(x)
+    return 10 * np.log10(x)
+
 
 def lin(x):
     """ Convert dB to linear """
-    return 10.0**(x / 10.0)
+    return 10.0 ** (x / 10.0)
+
 
 def closest(xarr, val):
     """ Return the index of the closest in xarr to value val """
     idx_closest = np.argmin(np.abs(xarr - val))
     return idx_closest
+
 
 def rebin(d, n_x, n_y=None):
     """ Rebin data by averaging bins together
@@ -86,6 +92,7 @@ def rebin(d, n_x, n_y=None):
     else:
         raise RuntimeError("Only NDIM <= 2 supported")
     return d
+
 
 ###
 # Header parsing
@@ -124,30 +131,31 @@ def rebin(d, n_x, n_y=None):
 #   * ibeam (int): number of the beam in this file (?)
 
 header_keyword_types = {
-    'telescope_id' : '<l',
-    'machine_id'   : '<l',
-    'data_type'    : '<l',
-    'barycentric'  : '<l',
+    'telescope_id': '<l',
+    'machine_id': '<l',
+    'data_type': '<l',
+    'barycentric': '<l',
     'pulsarcentric': '<l',
-    'nbits'        : '<l',
-    'nsamples'     : '<l',
-    'nchans'       : '<l',
-    'nifs'         : '<l',
-    'nbeams'       : '<l',
-    'ibeam'        : '<l',
-    'rawdatafile'  : 'str',
-    'source_name'  : 'str',
-    'az_start'     : '<d',
-    'za_start'     : '<d',
-    'tstart'       : '<d',
-    'tsamp'        : '<d',
-    'fch1'         : '<d',
-    'foff'         : '<d',
-    'refdm'        : '<d',
-    'period'       : '<d',
-    'src_raj'      : 'angle',
-    'src_dej'      : 'angle',
-    }
+    'nbits': '<l',
+    'nsamples': '<l',
+    'nchans': '<l',
+    'nifs': '<l',
+    'nbeams': '<l',
+    'ibeam': '<l',
+    'rawdatafile': 'str',
+    'source_name': 'str',
+    'az_start': '<d',
+    'za_start': '<d',
+    'tstart': '<d',
+    'tsamp': '<d',
+    'fch1': '<d',
+    'foff': '<d',
+    'refdm': '<d',
+    'period': '<d',
+    'src_raj': 'angle',
+    'src_dej': 'angle',
+}
+
 
 def grab_header(filename):
     """ Extract the filterbank header from the file 
@@ -160,7 +168,7 @@ def grab_header(filename):
     """
     f = open(filename, 'rb')
     eoh_found = False
-    
+
     header_str = ''
     header_sub_count = 0
     while not eoh_found:
@@ -169,18 +177,19 @@ def grab_header(filename):
         if 'HEADER_START' in header_sub:
             idx_start = header_sub.index('HEADER_START') + len('HEADER_START')
             header_sub = header_sub[idx_start:]
-        
+
         if 'HEADER_END' in header_sub:
             eoh_found = True
             idx_end = header_sub.index('HEADER_END')
             header_sub = header_sub[:idx_end]
-            
+
         if header_sub_count >= MAX_HEADER_BLOCKS:
             raise RuntimeError("MAX HEADER LENGTH REACHED. THIS FILE IS FUBARRED.")
         header_str += header_sub
-        
+
     f.close()
     return header_str
+
 
 def len_header(filename):
     """ Return the length of the filterbank header, in bytes 
@@ -191,7 +200,7 @@ def len_header(filename):
     Returns:
         idx_end (int): length of header, in bytes    
     """
-    with  open(filename, 'rb') as f:
+    with open(filename, 'rb') as f:
         header_sub_count = 0
         eoh_found = False
         while not eoh_found:
@@ -201,9 +210,10 @@ def len_header(filename):
                 idx_end = header_sub.index('HEADER_END') + len('HEADER_END')
                 eoh_found = True
                 break
-        
-        idx_end = (header_sub_count -1) * 512 + idx_end 
+
+        idx_end = (header_sub_count - 1) * 512 + idx_end
     return idx_end
+
 
 def parse_header(filename):
     """ Parse a header of a filterbank, looking for allowed keywords 
@@ -218,34 +228,35 @@ def parse_header(filename):
     """
     header = grab_header(filename)
     header_dict = {}
-    
-    #print header
+
+    # print header
     for keyword in header_keyword_types.keys():
         if keyword in header:
             dtype = header_keyword_types.get(keyword, 'str')
             idx = header.index(keyword) + len(keyword)
             dtype = header_keyword_types[keyword]
             if dtype == '<l':
-                val = struct.unpack(dtype, header[idx:idx+4])[0]
+                val = struct.unpack(dtype, header[idx:idx + 4])[0]
                 header_dict[keyword] = val
             if dtype == '<d':
-                val = struct.unpack(dtype, header[idx:idx+8])[0]
+                val = struct.unpack(dtype, header[idx:idx + 8])[0]
                 header_dict[keyword] = val
             if dtype == 'str':
-                str_len = struct.unpack('<L', header[idx:idx+4])[0]
-                str_val = header[idx+4:idx+4+str_len]
+                str_len = struct.unpack('<L', header[idx:idx + 4])[0]
+                str_val = header[idx + 4:idx + 4 + str_len]
                 header_dict[keyword] = str_val
             if dtype == 'angle':
-                val = struct.unpack('<d', header[idx:idx+8])[0]
+                val = struct.unpack('<d', header[idx:idx + 8])[0]
                 val = fil_double_to_angle(val)
-                
+
                 if keyword == 'src_raj':
                     val = Angle(val, unit=u.hour)
                 else:
                     val = Angle(val, unit=u.deg)
-                header_dict[keyword] = val                
-    
+                header_dict[keyword] = val
+
     return header_dict
+
 
 def read_next_header_keyword(fh):
     """ 
@@ -256,20 +267,20 @@ def read_next_header_keyword(fh):
     Returns: 
     """
     n_bytes = np.fromstring(fh.read(4), dtype='uint32')[0]
-    #print n_bytes
-    
+    # print n_bytes
+
     if n_bytes > 255:
         n_bytes = 16
-    
+
     keyword = fh.read(n_bytes)
-    
-    #print keyword
-    
+
+    # print keyword
+
     if keyword == 'HEADER_START' or keyword == 'HEADER_END':
         return keyword, 0, fh.tell()
     else:
         dtype = header_keyword_types[keyword]
-        #print dtype
+        # print dtype
         idx = fh.tell()
         if dtype == '<l':
             val = struct.unpack(dtype, fh.read(4))[0]
@@ -284,8 +295,9 @@ def read_next_header_keyword(fh):
             if keyword == 'src_raj':
                 val = Angle(val, unit=u.hour)
             else:
-                val = Angle(val, unit=u.deg)  
-        return keyword, val, idx  
+                val = Angle(val, unit=u.deg)
+        return keyword, val, idx
+
 
 def read_header(filename, return_idxs=False):
     """ Read filterbank header and return a Python dictionary of key:value pairs
@@ -303,15 +315,15 @@ def read_header(filename, return_idxs=False):
     with open(filename, 'rb') as fh:
         header_dict = {}
         header_idxs = {}
-        
+
         # Check this is a filterbank file
         keyword, value, idx = read_next_header_keyword(fh)
-        
+
         try:
             assert keyword == 'HEADER_START'
         except AssertionError:
             raise RuntimeError("Not a valid filterbank file.")
-        
+
         while True:
             keyword, value, idx = read_next_header_keyword(fh)
             if keyword == 'HEADER_END':
@@ -319,12 +331,13 @@ def read_header(filename, return_idxs=False):
             else:
                 header_dict[keyword] = value
                 header_idxs[keyword] = idx
-        
+
     if return_idxs:
         return header_idxs
     else:
         return header_dict
-    
+
+
 def fix_header(filename, keyword, new_value):
     """ Apply a quick patch-up to a Filterbank header by overwriting a header value
     
@@ -340,21 +353,21 @@ def fix_header(filename, keyword, new_value):
         string-type values - if the length of the string changes, all hell will
         break loose.
     
-    """  
-    
+    """
+
     # Read header data and return indexes of data offsets in file
     hd = read_header(filename)
     hi = read_header(filename, return_idxs=True)
     idx = hi[keyword]
-    
+
     # Find out the datatype for the given keyword
     dtype = header_keyword_types[keyword]
-    dtype_to_type = {'<l'  : np.int32,
-                     'str' : str, 
-                     '<d'  : np.float64,
-                     'angle' : to_sigproc_angle}
+    dtype_to_type = {'<l': np.int32,
+                     'str': str,
+                     '<d': np.float64,
+                     'angle': to_sigproc_angle}
     value_dtype = dtype_to_type[dtype]
-    
+
     # Generate the new string
     if value_dtype is str:
         if len(hd[keyword]) == len(new_value):
@@ -363,30 +376,32 @@ def fix_header(filename, keyword, new_value):
             raise RuntimeError("String size mismatch. Cannot update without rewriting entire file.")
     else:
         val_str = value_dtype(new_value).tostring()
-    
+
     # Write the new string to file
     with open(filename, 'rb+') as fh:
         fh.seek(idx)
-        fh.write(val_str)    
+        fh.write(val_str)
+
 
 def fil_double_to_angle(angle):
-      """ Reads a little-endian double in ddmmss.s (or hhmmss.s) format and then
-      converts to Float degrees (or hours).  This is primarily used to read
-      src_raj and src_dej header values. """
-      
-      negative = (angle < 0.0)
-      angle = np.abs(angle)
+    """ Reads a little-endian double in ddmmss.s (or hhmmss.s) format and then
+    converts to Float degrees (or hours).  This is primarily used to read
+    src_raj and src_dej header values. """
 
-      dd = np.floor((angle / 10000))
-      angle -= 10000 * dd
-      mm = np.floor((angle / 100))
-      ss = angle - 100 * mm
-      dd += mm/60.0 + ss/3600.0 
-      
-      if negative:
-          dd *= -1
-      
-      return dd
+    negative = (angle < 0.0)
+    angle = np.abs(angle)
+
+    dd = np.floor((angle / 10000))
+    angle -= 10000 * dd
+    mm = np.floor((angle / 100))
+    ss = angle - 100 * mm
+    dd += mm / 60.0 + ss / 3600.0
+
+    if negative:
+        dd *= -1
+
+    return dd
+
 
 ###
 # sigproc writing functions
@@ -409,18 +424,19 @@ def to_sigproc_keyword(keyword, value=None):
         return np.int32(len(keyword)).tostring() + keyword
     else:
         dtype = header_keyword_types[keyword]
-    
-        dtype_to_type = {'<l'  : np.int32,
-                         'str' : str, 
-                         '<d'  : np.float64,
-                         'angle' : to_sigproc_angle}
-    
+
+        dtype_to_type = {'<l': np.int32,
+                         'str': str,
+                         '<d': np.float64,
+                         'angle': to_sigproc_angle}
+
         value_dtype = dtype_to_type[dtype]
-        
+
         if value_dtype is str:
             return np.int32(len(keyword)).tostring() + keyword + np.int32(len(value)).tostring() + value
         else:
             return np.int32(len(keyword)).tostring() + keyword + value_dtype(value).tostring()
+
 
 def generate_sigproc_header(f):
     """ Generate a serialzed sigproc header which can be written to disk.
@@ -431,35 +447,37 @@ def generate_sigproc_header(f):
     Returns:
         header_str (str): Serialized string corresponding to header
     """
-     
+
     header_string = ''
     header_string += to_sigproc_keyword('HEADER_START')
-    
-    for keyword in f.header.keys():  
-            if keyword == 'src_raj':
-                header_string += to_sigproc_keyword('src_raj')  + to_sigproc_angle(f.header['src_raj'])
-            elif keyword == 'src_dej':    
-                header_string += to_sigproc_keyword('src_dej')  + to_sigproc_angle(f.header['src_dej'])
-            elif keyword == 'az_start' or keyword == 'za_start':    
-                header_string += to_sigproc_keyword(keyword)  + np.float64(f.header[keyword]).tostring()
-            else:    
-                header_string += to_sigproc_keyword(keyword, f.header[keyword])
+
+    for keyword in f.header.keys():
+        if keyword == 'src_raj':
+            header_string += to_sigproc_keyword('src_raj') + to_sigproc_angle(f.header['src_raj'])
+        elif keyword == 'src_dej':
+            header_string += to_sigproc_keyword('src_dej') + to_sigproc_angle(f.header['src_dej'])
+        elif keyword == 'az_start' or keyword == 'za_start':
+            header_string += to_sigproc_keyword(keyword) + np.float64(f.header[keyword]).tostring()
+        else:
+            header_string += to_sigproc_keyword(keyword, f.header[keyword])
 
     header_string += to_sigproc_keyword('HEADER_END')
     return header_string
+
 
 def to_sigproc_angle(angle_val):
     """ Convert an astropy.Angle to the ridiculous sigproc angle format string. """
     x = str(angle_val)
 
     if 'h' in x:
-        d, m, s, ss = int(x[0:x.index('h')]), int(x[x.index('h')+1:x.index('m')]), \
-        int(x[x.index('m')+1:x.index('.')]), float(x[x.index('.'):x.index('s')])
+        d, m, s, ss = int(x[0:x.index('h')]), int(x[x.index('h') + 1:x.index('m')]), \
+                      int(x[x.index('m') + 1:x.index('.')]), float(x[x.index('.'):x.index('s')])
     if 'd' in x:
-        d, m, s, ss = int(x[0:x.index('d')]), int(x[x.index('d')+1:x.index('m')]), \
-        int(x[x.index('m')+1:x.index('.')]), float(x[x.index('.'):x.index('s')])
-    num = str(d).zfill(2) + str(m).zfill(2) + str(s).zfill(2)+ '.' + str(ss).split(".")[-1]
+        d, m, s, ss = int(x[0:x.index('d')]), int(x[x.index('d') + 1:x.index('m')]), \
+                      int(x[x.index('m') + 1:x.index('.')]), float(x[x.index('.'):x.index('s')])
+    num = str(d).zfill(2) + str(m).zfill(2) + str(s).zfill(2) + '.' + str(ss).split(".")[-1]
     return np.float64(num).tostring()
+
 
 ###
 # Main filterbank class
@@ -467,11 +485,11 @@ def to_sigproc_angle(angle_val):
 
 class Filterbank(object):
     """ Class for loading and plotting filterbank data """
-    
+
     def __repr__(self):
         return "Filterbank data: %s" % self.filename
-    
-    def __init__(self, filename, f_start=None, f_stop=None, 
+
+    def __init__(self, filename, f_start=None, f_stop=None,
                  t_start=None, t_stop=None, load_data=True):
         """ Class for loading and plotting filterbank data.
         
@@ -489,58 +507,56 @@ class Filterbank(object):
             t_stop (int): stop integration ID
             load_data (bool): load data. If set to False, only header will be read.
         """
-        
+
         self.filename = filename
         self.header = read_header(filename)
- 
+
         ## Setup frequency axis
-        f0 = self.header['fch1'] 
+        f0 = self.header['fch1']
         f_delt = self.header['foff']
-        
-        
+
         # keep this seperate!
         # file_freq_mapping =  np.arange(0, self.header['nchans'], 1, dtype='float64') * f_delt + f0
-        
-        #convert input frequencies into what their corresponding index would be
-        
+
+        # convert input frequencies into what their corresponding index would be
+
         i_start, i_stop = 0, self.header['nchans']
         if f_start:
             i_start = (f_start - f0) / f_delt
         if f_stop:
-            i_stop  = (f_stop - f0)  / f_delt
+            i_stop = (f_stop - f0) / f_delt
 
-        #calculate closest true index value
+        # calculate closest true index value
         chan_start_idx = np.int(i_start)
-        chan_stop_idx  = np.int(i_stop)
-                
-        #create freq array
-        
+        chan_stop_idx = np.int(i_stop)
+
+        # create freq array
+
         if i_start < i_stop:
             i_vals = np.arange(chan_start_idx, chan_stop_idx)
         else:
             i_vals = np.arange(chan_stop_idx, chan_start_idx)
-        
-        
+
         self.freqs = f_delt * i_vals + f0
-        
+
         if f_delt < 0:
             self.freqs = self.freqs[::-1]
-        
+
         # Load binary data 
         self.idx_data = len_header(filename)
         f = open(filename, 'rb')
         f.seek(self.idx_data)
-        
-        n_bytes  = self.header['nbits'] / 8
+
+        n_bytes = self.header['nbits'] / 8
         n_chans = self.header['nchans']
         n_chans_selected = self.freqs.shape[0]
-        n_ifs   = self.header['nifs']
-        
+        n_ifs = self.header['nifs']
+
         # only read first integration of large file (for now, later more flexible)
         filesize = os.path.getsize(self.filename)
         n_bytes_data = filesize - self.idx_data
         n_ints_in_file = n_bytes_data / (n_bytes * n_chans * n_ifs)
-        
+
         # now check to see how many integrations requested
         ii_start, ii_stop = 0, n_ints_in_file
         if t_start:
@@ -551,11 +567,11 @@ class Filterbank(object):
 
         # Seek to first integration
         f.seek(ii_start * n_bytes * n_ifs * n_chans, 1)
-        
+
         # Set up indexes used in file read (taken out of loop for speed)
         i0 = np.min((chan_start_idx, chan_stop_idx))
-        i1 = np.max((chan_start_idx, chan_stop_idx)) 
-                
+        i1 = np.max((chan_start_idx, chan_stop_idx))
+
         if load_data:
 
             if n_ints * n_ifs * n_chans_selected > MAX_DATA_ARRAY_SIZE:
@@ -571,9 +587,8 @@ class Filterbank(object):
 
                 for jj in range(n_ifs):
 
-                    f.seek(n_bytes * i0, 1) # 1 = from current location
+                    f.seek(n_bytes * i0, 1)  # 1 = from current location
                     d = f.read(n_bytes * n_chans_selected)
-
 
                     if n_bytes == 4:
                         dd = np.fromstring(d, dtype='float32')
@@ -592,51 +607,50 @@ class Filterbank(object):
         else:
             print "Skipping data load..."
             self.data = np.array([0])
-            
+
         ## Setup time axis
         t0 = self.header['tstart']
         t_delt = self.header['tsamp']
-        self.timestamps = np.arange(0, n_ints) * t_delt / 24./60./60 + t0
-        
-        # Finally add some other info to the class as objects
-        self.n_ints_in_file  = n_ints_in_file
-        self.file_size_bytes = filesize
+        self.timestamps = np.arange(0, n_ints) * t_delt / 24. / 60. / 60 + t0
 
+        # Finally add some other info to the class as objects
+        self.n_ints_in_file = n_ints_in_file
+        self.file_size_bytes = filesize
 
     def info(self):
         """ Print header information """
-        
+
         for key, val in self.header.items():
             if key == 'src_raj':
                 val = val.to_string(unit=u.hour, sep=':')
             if key == 'src_dej':
                 val = val.to_string(unit=u.deg, sep=':')
             print "%16s : %32s" % (key, val)
-            
+
         print "\n%16s : %32s" % ("Num ints in file", self.n_ints_in_file)
         print "%16s : %32s" % ("Data shape", self.data.shape)
         print "%16s : %32s" % ("Start freq (MHz)", self.freqs[0])
         print "%16s : %32s" % ("Stop freq (MHz)", self.freqs[-1])
 
-    def generate_freqs(self, f_start, f_stop): 
+    def generate_freqs(self, f_start, f_stop):
         """
         returns frequency array [f_start...f_stop]
         """
-        
+
         fch1 = self.header['fch1']
         foff = self.header['foff']
-        
-        #convert input frequencies into what their corresponding index would be
+
+        # convert input frequencies into what their corresponding index would be
         i_start = (f_start - fch1) / foff
-        i_stop  = (f_stop - fch1)  / foff
+        i_stop = (f_stop - fch1) / foff
 
-        #calculate closest true index value
+        # calculate closest true index value
         chan_start_idx = np.int(i_start)
-        chan_stop_idx  = np.int(i_stop)
+        chan_stop_idx = np.int(i_stop)
 
-        #create freq array
+        # create freq array
         i_vals = np.arange(chan_stop_idx, chan_start_idx, 1)
-        
+
         freqs = foff * i_vals + fch1
         return freqs[::-1]
 
@@ -652,15 +666,15 @@ class Filterbank(object):
             (freqs, data) (np.arrays): frequency axis in MHz and data subset
         """
         i_start, i_stop = 0, None
-        
+
         if f_start:
             i_start = closest(self.freqs, f_start)
         if f_stop:
             i_stop = closest(self.freqs, f_stop)
 
-        plot_f    = self.freqs[i_start:i_stop]
+        plot_f = self.freqs[i_start:i_stop]
         plot_data = self.data[:, if_id, i_start:i_stop]
-        return plot_f, plot_data      
+        return plot_f, plot_data
 
     def plot_spectrum(self, t=0, f_start=None, f_stop=None, logged=False, if_id=0, c=None, **kwargs):
         """ Plot frequency spectrum of a given file 
@@ -673,9 +687,9 @@ class Filterbank(object):
             kwargs: keyword args to be passed to matplotlib plot()
         """
         ax = plt.gca()
-        
+
         plot_f, plot_data = self.grab_data(f_start, f_stop, if_id)
-        
+
         if isinstance(t, int):
             print "extracting integration %i..." % t
             plot_data = plot_data[t]
@@ -689,18 +703,18 @@ class Filterbank(object):
         dec_fac_x = 1
         if plot_data.shape[0] > MAX_PLT_POINTS:
             dec_fac_x = plot_data.shape[0] / MAX_PLT_POINTS
-        
+
         plot_data = rebin(plot_data, dec_fac_x, 1)
-        plot_f    = rebin(plot_f, dec_fac_x, 1)
-        
+        plot_f = rebin(plot_f, dec_fac_x, 1)
+
         if not c:
             kwargs['c'] = '#333333'
-        
+
         if logged:
             plt.plot(plot_f, db(plot_data), **kwargs)
             plt.ylabel("Power [dB]")
         else:
-            
+
             plt.plot(plot_f, plot_data, **kwargs)
             plt.ylabel("Power [counts]")
         plt.xlabel("Frequency [MHz]")
@@ -709,10 +723,10 @@ class Filterbank(object):
             plt.title(self.header['source_name'])
         except KeyError:
             plt.title(self.filename)
-        
+
         ax.get_xaxis().get_major_formatter().set_useOffset(False)
         plt.xlim(plot_f[0], plot_f[-1])
-    
+
     def plot_waterfall(self, f_start=None, f_stop=None, if_id=0, logged=True, **kwargs):
         """ Plot waterfall of data 
         
@@ -723,48 +737,47 @@ class Filterbank(object):
             kwargs: keyword args to be passed to matplotlib imshow()
         """
         plot_f, plot_data = self.grab_data(f_start, f_stop, if_id)
-        
+
         if logged:
             plot_data = db(plot_data)
-        
+
         # Make sure waterfall plot is under 4k*4k
         dec_fac_x, dec_fac_y = 1, 1
         if plot_data.shape[0] > MAX_IMSHOW_POINTS[0]:
             dec_fac_x = plot_data.shape[0] / MAX_IMSHOW_POINTS[0]
-            
+
         if plot_data.shape[1] > MAX_IMSHOW_POINTS[1]:
-            dec_fac_y =  plot_data.shape[1] /  MAX_IMSHOW_POINTS[1]
-        
+            dec_fac_y = plot_data.shape[1] / MAX_IMSHOW_POINTS[1]
+
         plot_data = rebin(plot_data, dec_fac_x, dec_fac_y)
-        
-        
+
         try:
             plt.title(self.header['source_name'])
         except KeyError:
             plt.title(self.filename)
-        
-        plt.imshow(plot_data, 
-            aspect='auto',
-            rasterized=True,
-            interpolation='nearest',
-            extent=(plot_f[0], plot_f[-1], self.timestamps[-1], self.timestamps[0]),
-            cmap='viridis',
-            **kwargs
-        )
+
+        plt.imshow(plot_data,
+                   aspect='auto',
+                   rasterized=True,
+                   interpolation='nearest',
+                   extent=(plot_f[0], plot_f[-1], self.timestamps[-1], self.timestamps[0]),
+                   cmap='cool',
+                   **kwargs
+                   )
         plt.colorbar()
         plt.xlabel("Frequency [MHz]")
         plt.ylabel("Time [MJD]")
 
     def write_to_filterbank(self, filename_out=None):
-        #calibrate data
-        #self.data = calibrate(mask(self.data.mean(axis=0)[0]))
-        #rewrite header to be consistent with modified data
-        self.header['fch1']   = self.freqs[0]
-        self.header['foff']   = self.freqs[1] - self.freqs[0]
+        # calibrate data
+        # self.data = calibrate(mask(self.data.mean(axis=0)[0]))
+        # rewrite header to be consistent with modified data
+        self.header['fch1'] = self.freqs[0]
+        self.header['foff'] = self.freqs[1] - self.freqs[0]
         self.header['nchans'] = self.freqs.shape[0]
-        #self.header['tsamp']  = self.data.shape[0] * self.header['tsamp']
-        
-        n_bytes  = self.header['nbits'] / 8
+        # self.header['tsamp']  = self.data.shape[0] * self.header['tsamp']
+
+        n_bytes = self.header['nbits'] / 8
         with open(filename_out, "w") as fileh:
             fileh.write(generate_sigproc_header(self))
             j = self.data
@@ -775,62 +788,64 @@ class Filterbank(object):
             elif n_bytes == 1:
                 np.int8(j[:, ::-1].ravel()).tofile(fileh)
 
+
 if __name__ == "__main__":
     from argparse import ArgumentParser
-    
-    parser = ArgumentParser(description="Command line utility for reading and plotting filterbank files.")
-    
-    parser.add_argument('-w', action='store_true', default=False, dest='waterfall', 
+
+    parser = ArgumentParser(description="Command line utility for reading and plotting "
+                                        "filterbank files.")
+
+    parser.add_argument('-w', action='store_true', default=False, dest='waterfall',
                         help='Show waterfall (freq vs. time) plot')
-    parser.add_argument('filename', type=str, 
+    parser.add_argument('filename', type=str,
                         help='Name of file to read')
     parser.add_argument('-b', action='store', default=None, dest='f_start', type=float,
                         help='Start frequency (begin), in MHz')
     parser.add_argument('-e', action='store', default=None, dest='f_stop', type=float,
-                        help='Stop frequency (end), in MHz')    
+                        help='Stop frequency (end), in MHz')
     parser.add_argument('-B', action='store', default=None, dest='t_start', type=int,
                         help='Start integration (begin) ID')
     parser.add_argument('-E', action='store', default=None, dest='t_stop', type=int,
-                        help='Stop integration (end) ID')    
+                        help='Stop integration (end) ID')
     parser.add_argument('-i', action='store_true', default=False, dest='info_only',
                         help='Show info only')
     parser.add_argument('-a', action='store_true', default=False, dest='average',
-                       help='average along time axis (plot spectrum only)')
+                        help='average along time axis (plot spectrum only)')
     parser.add_argument('-s', action='store', default='', dest='plt_filename', type=str,
-                       help='save plot graphic to file (give filename as argument)')
+                        help='save plot graphic to file (give filename as argument)')
     parser.add_argument('-S', action='store_true', default=False, dest='save_only',
-                       help='Turn off plotting of data and only save to file.')
+                        help='Turn off plotting of data and only save to file.')
     args = parser.parse_args()
-    
+
     # Open filterbank data
     filename = args.filename
     load_data = not args.info_only
-    
+
     # only load one integration if looking at spectrum
     if not args.waterfall:
         if args.t_start == None:
             t_start = 0
         else:
             t_start = args.t_start
-        t_stop  = t_start + 1
-        
+        t_stop = t_start + 1
+
         if args.average:
             t_start = None
-            t_stop  = None
-        
+            t_stop = None
+
     else:
         t_start = args.t_start
-        t_stop  = args.t_stop
-                
-    fil = Filterbank(filename, f_start=args.f_start, f_stop=args.f_stop, 
-                     t_start=t_start, t_stop=t_stop, 
+        t_stop = args.t_stop
+
+    fil = Filterbank(filename, f_start=args.f_start, f_stop=args.f_stop,
+                     t_start=t_start, t_stop=t_stop,
                      load_data=load_data)
     fil.info()
-    
+
     # And if we want to plot data, then plot data.
     if not args.info_only:
         # check start & stop frequencies make sense
-        #try:
+        # try:
         #    if args.f_start:
         #        print "Start freq: %2.2f" % args.f_start
         #        assert args.f_start >= fil.freqs[0] or np.isclose(args.f_start, fil.freqs[0])
@@ -838,25 +853,25 @@ if __name__ == "__main__":
         #    if args.f_stop:
         #        print "Stop freq: %2.2f" % args.f_stop
         #        assert args.f_stop <= fil.freqs[-1] or np.isclose(args.f_stop, fil.freqs[-1])
-        #except AssertionError:
+        # except AssertionError:
         #    print "Error: Start and stop frequencies must lie inside file's frequency range."
         #    print "i.e. between %2.2f-%2.2f MHz." % (fil.freqs[0], fil.freqs[-1])
         #    exit()
-        
+
         if not args.waterfall:
             plt.figure("Spectrum", figsize=(8, 6))
-        
+
             fil.plot_spectrum(logged=True, f_start=args.f_start, f_stop=args.f_stop, t='all')
-        
+
         # don't bother doing imshow if it's only a few integrations
         if args.waterfall:
             plt.figure("waterfall", figsize=(8, 6))
             fil.plot_waterfall(f_start=args.f_start, f_stop=args.f_stop)
-            #plt.clim(75, 85)
-        
+            # plt.clim(75, 85)
+
         if args.plt_filename != '':
             plt.savefig(args.plt_filename)
-        
+
         if not args.save_only:
             if os.environ.has_key('DISPLAY'):
                 plt.show()
